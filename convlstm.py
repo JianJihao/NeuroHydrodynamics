@@ -35,23 +35,31 @@ class ConvLSTM1DCell(nn.Module):
         self.padding = padding
         self.bias = bias
 
-        self.conv = nn.Conv1d(in_channels=self.input_dim + self.hidden_dim,
-                              out_channels=4 * self.hidden_dim,
-                              kernel_size=self.kernel_size,
-                              padding=self.padding,
-                              bias=self.bias)
+        self.input_conv = nn.Conv1d(in_channels=self.input_dim,
+                                    out_channels=4 * self.hidden_dim,
+                                    kernel_size=self.kernel_size,
+                                    padding=self.padding,
+                                    bias=self.bias)
+
+        self.recurrent_conv = nn.Conv1d(in_channels=self.hidden_dim,
+                                        out_channels=4 * self.hidden_dim,
+                                        kernel_size=1,
+                                        padding=0,
+                                        bias=self.bias)
 
     def forward(self, input_tensor, cur_state):
         h_cur, c_cur = cur_state
 
-        combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
+        input_conv = self.input_conv(input_tensor)
+        recurrent_conv = self.recurrent_conv(h_cur)
 
-        combined_conv = self.conv(combined)
-        cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
-        i = torch.sigmoid(cc_i)
-        f = torch.sigmoid(cc_f)
-        o = torch.sigmoid(cc_o)
-        g = torch.tanh(cc_g)
+        x_i, x_f, x_o, x_g = torch.split(input_conv, self.hidden_dim, dim=1)
+        h_i, h_f, h_o, h_g = torch.split(recurrent_conv, self.hidden_dim, dim=1)
+
+        i = torch.sigmoid(x_i + h_i)
+        f = torch.sigmoid(x_f + h_f)
+        o = torch.sigmoid(x_o + h_o)
+        g = torch.tanh(x_g + h_g)
 
         c_next = f * c_cur + i * g
         h_next = o * torch.tanh(c_next)
@@ -233,23 +241,31 @@ class ConvLSTM2DCell(nn.Module):
         self.padding = padding
         self.bias = bias
 
-        self.conv = nn.Conv2d(in_channels=self.input_dim + self.hidden_dim,
-                              out_channels=4 * self.hidden_dim,
-                              kernel_size=self.kernel_size,
-                              padding=self.padding,
-                              bias=self.bias)
+        self.input_conv = nn.Conv2d(in_channels=self.input_dim,
+                                    out_channels=4 * self.hidden_dim,
+                                    kernel_size=self.kernel_size,
+                                    padding=self.padding,
+                                    bias=self.bias)
+
+        self.recurrent_conv = nn.Conv2d(in_channels=self.hidden_dim,
+                                        out_channels=4 * self.hidden_dim,
+                                        kernel_size=1,
+                                        padding=(0, 0),
+                                        bias=self.bias)
 
     def forward(self, input_tensor, cur_state):
         h_cur, c_cur = cur_state
 
-        combined = torch.cat([input_tensor, h_cur], dim=1)  # concatenate along channel axis
+        input_conv = self.input_conv(input_tensor)
+        recurrent_conv = self.recurrent_conv(h_cur)
 
-        combined_conv = self.conv(combined)
-        cc_i, cc_f, cc_o, cc_g = torch.split(combined_conv, self.hidden_dim, dim=1)
-        i = torch.sigmoid(cc_i)
-        f = torch.sigmoid(cc_f)
-        o = torch.sigmoid(cc_o)
-        g = torch.tanh(cc_g)
+        x_i, x_f, x_o, x_g = torch.split(input_conv, self.hidden_dim, dim=1)
+        h_i, h_f, h_o, h_g = torch.split(recurrent_conv, self.hidden_dim, dim=1)
+
+        i = torch.sigmoid(x_i + h_i)
+        f = torch.sigmoid(x_f + h_f)
+        o = torch.sigmoid(x_o + h_o)
+        g = torch.tanh(x_g + h_g)
 
         c_next = f * c_cur + i * g
         h_next = o * torch.tanh(c_next)
@@ -257,9 +273,8 @@ class ConvLSTM2DCell(nn.Module):
         return h_next, c_next
 
     def init_hidden(self, batch_size, image_size):
-        
         height, width = image_size
-        
+
         out_height = height + 2 * self.padding[0] - self.kernel_size[0] + 1
         out_width = width + 2 * self.padding[1] - self.kernel_size[1] + 1
 
